@@ -39,6 +39,10 @@
         <input type="text" name="subject" placeholder="Предмет" required>
         <input type="text" name="amounts" placeholder="Суммы (необязательно)">
         <textarea name="extra" placeholder="Доп. условия (необязательно)"></textarea>
+        <select name="model">
+          <option value="Llama">🟢 Llama 3.3 (бесплатно)</option>
+          <option value="Claude">🟣 Claude Haiku (платно)</option>
+        </select>
         <button type="submit">Сгенерировать</button>
       </form>
       <div id="document-error" class="error"></div>
@@ -50,6 +54,10 @@
     <div id="tab-contracts" class="tab-panel">
       <form id="contract-form">
         <input type="file" name="file" accept=".txt,.docx,.pdf" required>
+        <select name="model">
+          <option value="Llama">🟢 Llama 3.3 (бесплатно)</option>
+          <option value="Claude">🟣 Claude Haiku (платно)</option>
+        </select>
         <button type="submit">Загрузить и проанализировать</button>
       </form>
       <div id="contract-error" class="error"></div>

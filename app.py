@@ -102,6 +102,7 @@ class DocumentRequest(BaseModel):
     subject: str
     amounts: str = ""
     extra: str = ""
+    model: str | None = None
 
 
 @app.post("/api/documents/generate")
@@ -114,7 +115,7 @@ def generate_document(req: DocumentRequest, _: None = Depends(require_session)):
         f"Доп. условия: {req.extra or 'нет'}"
     )
     try:
-        text = call_llm(DEFAULT_MODEL, DOCUMENT_SYSTEM_PROMPT, [{"role": "user", "content": user_prompt}])
+        text = call_llm(req.model or DEFAULT_MODEL, DOCUMENT_SYSTEM_PROMPT, [{"role": "user", "content": user_prompt}])
     except LLMError as e:
         raise HTTPException(status_code=502, detail=str(e))
     doc_id = uuid.uuid4().hex
@@ -159,13 +160,13 @@ def _extract_text(filename: str, content: bytes) -> str:
 
 
 @app.post("/api/contracts/analyze")
-async def analyze_contract(file: UploadFile = File(...), _: None = Depends(require_session)):
+async def analyze_contract(file: UploadFile = File(...), model: str = Form(default=""), _: None = Depends(require_session)):
     content = await file.read()
     text = _extract_text(file.filename, content)
     if not text.strip():
         raise HTTPException(status_code=400, detail="Не удалось извлечь текст из файла")
     try:
-        analysis_text = call_llm(DEFAULT_MODEL, CONTRACT_SYSTEM_PROMPT, [{"role": "user", "content": text}])
+        analysis_text = call_llm(model or DEFAULT_MODEL, CONTRACT_SYSTEM_PROMPT, [{"role": "user", "content": text}])
     except LLMError as e:
         raise HTTPException(status_code=502, detail=str(e))
     contract_id = uuid.uuid4().hex
