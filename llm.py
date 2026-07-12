@@ -9,11 +9,14 @@ _client = None
 def _get_client():
     global _client
     if _client is None:
-        # trust_env=False: the host machine sets a SOCKS4 proxy env var (for an
-        # unrelated VPN app) that httpx cannot parse (only SOCKS5 is supported),
-        # which crashed every LLM call with an unhandled ValueError instead of
-        # a clean LLMError. OpenRouter itself doesn't need that proxy.
-        http_client = httpx.Client(trust_env=False)
+        # The host's Windows system proxy is a Happ/Xray SOCKS5 listener on
+        # 127.0.0.1:10808, but Windows registers it under the generic "socks="
+        # key, which httpx's auto-detection misreads as socks4 (unsupported,
+        # crashes with ValueError). Going fully proxy-less (trust_env=False)
+        # instead hits OpenRouter directly from the RU IP, which OpenRouter's
+        # WAF blocks ("Access denied by security policy"). So: route through
+        # the same proxy explicitly, with the correct socks5 scheme.
+        http_client = httpx.Client(proxy="socks5://127.0.0.1:10808", trust_env=False)
         _client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY, http_client=http_client)
     return _client
 
