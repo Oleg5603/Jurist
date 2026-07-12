@@ -1,3 +1,4 @@
+import httpx
 from openai import OpenAI, APIError, APIConnectionError, APITimeoutError
 
 from config import OPENROUTER_API_KEY
@@ -8,7 +9,12 @@ _client = None
 def _get_client():
     global _client
     if _client is None:
-        _client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)
+        # trust_env=False: the host machine sets a SOCKS4 proxy env var (for an
+        # unrelated VPN app) that httpx cannot parse (only SOCKS5 is supported),
+        # which crashed every LLM call with an unhandled ValueError instead of
+        # a clean LLMError. OpenRouter itself doesn't need that proxy.
+        http_client = httpx.Client(trust_env=False)
+        _client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY, http_client=http_client)
     return _client
 
 MODELS = {
@@ -28,9 +34,8 @@ def call_llm(model_key: str, system: str, messages: list[dict]) -> str:
     if model_key not in MODELS:
         raise LLMError(f"Неизвестная модель: {model_key}")
 
-    client = _get_client()
-
     try:
+        client = _get_client()
         resp = client.chat.completions.create(
             model=MODELS[model_key]["model"],
             max_tokens=2048,
@@ -42,6 +47,8 @@ def call_llm(model_key: str, system: str, messages: list[dict]) -> str:
         raise LLMError("Не удалось подключиться к OpenRouter. Проверьте интернет-соединение.")
     except APIError as e:
         raise LLMError(f"Ошибка OpenRouter: {e}")
+    except Exception as e:
+        raise LLMError(f"Не удалось обратиться к LLM: {e}")
     content = resp.choices[0].message.content
     if not content:
         raise LLMError("Модель вернула пустой ответ. Попробуйте ещё раз.")
