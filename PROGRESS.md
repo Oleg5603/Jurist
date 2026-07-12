@@ -5,9 +5,14 @@
 ## Что это
 Веб-приложение для частного юриста (РФ). MVP из трёх функций, без мульти-агентного оркестратора (сознательно урезано от 9-агентной идеи — слишком долго, заточено под США).
 
-## Статус: реализация завершена, ждём рабочий OPENROUTER_API_KEY
+## Статус: реализация завершена, все 3 сценария подтверждены реальными ответами LLM
 Спецификация: [docs/superpowers/specs/2026-07-12-jurist-mvp-design.md](docs/superpowers/specs/2026-07-12-jurist-mvp-design.md).
-План реализации: [docs/superpowers/plans/2026-07-13-jurist-mvp-implementation.md](docs/superpowers/plans/2026-07-13-jurist-mvp-implementation.md) — все 9 задач выполнены, ветка `jurist-mvp-implementation` (запушена в origin).
+План реализации: [docs/superpowers/plans/2026-07-13-jurist-mvp-implementation.md](docs/superpowers/plans/2026-07-13-jurist-mvp-implementation.md) — все 9 задач выполнены, ветка `jurist-mvp-implementation` (запушена в origin, коммит `a180802`, не смёржена в `master`).
+
+Реальные логин/пароль и рабочий `OPENROUTER_API_KEY` установлены в `.env` (файл в `.gitignore`, в git не попадает — учётные данные см. локально в `.env`, не здесь). Все три сценария (чат, генерация документа, анализ договора) проверены вживую с моделью Claude Haiku (`model:"Claude"` в запросе) — реальные содержательные ответы. Бесплатная Llama периодически даёт 429 (перегрузка провайдера Venice на стороне OpenRouter) — не баг, просто временный upstream-затор, тогда переключайтесь на Claude в выпадающем списке модели.
+
+### Известный баг с прокси на этой машине (см. также [[project-net-monitor-dropouts]])
+Windows системный прокси = `socks=127.0.0.1:10808` (реестр `HKCU\...\Internet Settings`, это локальный Xray-листенер Happ VPN, слушает как SOCKS5). `httpx` при автоопределении (`trust_env=True`, поведение по умолчанию) неверно трактует его как `socks4://` → падает `ValueError`. Полное отключение прокси (`trust_env=False`) вместо этого шлёт трафик напрямую с реального IP — OpenRouter's WAF блокирует прямые запросы («403 Access denied by security policy»). **Правильный фикс** (в `llm.py`, `_get_client()`): `httpx.Client(proxy="socks5://127.0.0.1:10808", trust_env=False)` — явно указываем верную схему прокси. Если снова увидите 403 "Access denied" или необработанный `ValueError` про прокси — проверьте, не поменялся ли порт Happ-прокси в реестре (`Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings'`).
 
 Все файлы написаны и закоммичены: `app.py`, `config.py`, `llm.py`, `storage.py`, `static/index.html`, `static/app.html`, `static/app.js`, `static/style.css`.
 
