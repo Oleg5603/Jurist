@@ -1,5 +1,6 @@
 import io
 import os
+import secrets
 import uuid
 
 import docx
@@ -36,7 +37,9 @@ def require_session(request: Request) -> None:
 
 @app.post("/login")
 def login(login: str = Form(...), password: str = Form(...)):
-    if login != APP_LOGIN or password != APP_PASSWORD:
+    login_ok = secrets.compare_digest(login, APP_LOGIN)
+    password_ok = secrets.compare_digest(password, APP_PASSWORD)
+    if not (login_ok and password_ok):
         raise HTTPException(status_code=401, detail="Неверный логин или пароль")
     token = _serializer.dumps({"login": login})
     response = RedirectResponse(url="/app", status_code=303)
