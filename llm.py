@@ -1,3 +1,5 @@
+import time
+
 import httpx
 from openai import OpenAI, APIError, APIConnectionError, APITimeoutError
 
@@ -38,21 +40,34 @@ def call_llm(model_key: str, system: str, messages: list[dict]) -> str:
     if model_key not in MODELS:
         raise LLMError(f"Неизвестная модель: {model_key}")
 
-    try:
-        client = _get_client()
-        resp = client.chat.completions.create(
-            model=MODELS[model_key]["model"],
-            max_tokens=2048,
-            messages=[{"role": "system", "content": system}, *messages],
-        )
-    except APITimeoutError:
-        raise LLMError("Модель не ответила вовремя (таймаут). Попробуйте ещё раз.")
-    except APIConnectionError:
+    # The proxy this machine routes through (see _get_client above) is known to drop
+    # connections intermittently, not consistently — a single retry on connection-level
+    # failures (not on timeouts or API errors) smooths over that flakiness.
+    last_connection_error = None
+    resp = None
+    for attempt in range(2):
+        try:
+            client = _get_client()
+            resp = client.chat.completions.create(
+                model=MODELS[model_key]["model"],
+                max_tokens=2048,
+                messages=[{"role": "system", "content": system}, *messages],
+            )
+            last_connection_error = None
+            break
+        except APIConnectionError as e:
+            last_connection_error = e
+            if attempt == 0:
+                time.sleep(1)
+                continue
+        except APITimeoutError:
+            raise LLMError("Модель не ответила вовремя (таймаут). Попробуйте ещё раз.")
+        except APIError as e:
+            raise LLMError(f"Ошибка OpenRouter: {e}")
+        except Exception as e:
+            raise LLMError(f"Не удалось обратиться к LLM: {e}")
+    if last_connection_error is not None:
         raise LLMError("Не удалось подключиться к OpenRouter. Проверьте интернет-соединение.")
-    except APIError as e:
-        raise LLMError(f"Ошибка OpenRouter: {e}")
-    except Exception as e:
-        raise LLMError(f"Не удалось обратиться к LLM: {e}")
     content = resp.choices[0].message.content
     if not content:
         raise LLMError("Модель вернула пустой ответ. Попробуйте ещё раз.")
