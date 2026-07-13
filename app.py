@@ -12,7 +12,8 @@ from pydantic import BaseModel
 
 import storage
 from config import APP_LOGIN, APP_PASSWORD, SESSION_SECRET
-from llm import call_llm, LLMError, DEFAULT_MODEL
+from llm import call_llm, LLMError, DEFAULT_MODEL, classify_practice
+from practices import with_practice
 
 app = FastAPI(title="Jurist")
 
@@ -76,8 +77,10 @@ class ChatRequest(BaseModel):
 def chat(req: ChatRequest, _: None = Depends(require_session)):
     history = storage.load_chat(req.session_id)
     history.append({"role": "user", "content": req.message})
+    practice_id = classify_practice(req.message)
+    system = with_practice(CHAT_SYSTEM_PROMPT, practice_id)
     try:
-        reply = call_llm(req.model or DEFAULT_MODEL, CHAT_SYSTEM_PROMPT, history)
+        reply = call_llm(req.model or DEFAULT_MODEL, system, history)
     except LLMError as e:
         raise HTTPException(status_code=502, detail=str(e))
     history.append({"role": "assistant", "content": reply})
@@ -114,8 +117,10 @@ def generate_document(req: DocumentRequest, _: None = Depends(require_session)):
         f"Суммы: {req.amounts or 'не указаны'}\n"
         f"Доп. условия: {req.extra or 'нет'}"
     )
+    practice_id = classify_practice(user_prompt)
+    system = with_practice(DOCUMENT_SYSTEM_PROMPT, practice_id)
     try:
-        text = call_llm(req.model or DEFAULT_MODEL, DOCUMENT_SYSTEM_PROMPT, [{"role": "user", "content": user_prompt}])
+        text = call_llm(req.model or DEFAULT_MODEL, system, [{"role": "user", "content": user_prompt}])
     except LLMError as e:
         raise HTTPException(status_code=502, detail=str(e))
     doc_id = uuid.uuid4().hex
@@ -165,8 +170,10 @@ async def analyze_contract(file: UploadFile = File(...), model: str = Form(defau
     text = _extract_text(file.filename, content)
     if not text.strip():
         raise HTTPException(status_code=400, detail="Не удалось извлечь текст из файла")
+    practice_id = classify_practice(text)
+    system = with_practice(CONTRACT_SYSTEM_PROMPT, practice_id)
     try:
-        analysis_text = call_llm(model or DEFAULT_MODEL, CONTRACT_SYSTEM_PROMPT, [{"role": "user", "content": text}])
+        analysis_text = call_llm(model or DEFAULT_MODEL, system, [{"role": "user", "content": text}])
     except LLMError as e:
         raise HTTPException(status_code=502, detail=str(e))
     contract_id = uuid.uuid4().hex

@@ -2,6 +2,7 @@ import httpx
 from openai import OpenAI, APIError, APIConnectionError, APITimeoutError
 
 from config import OPENROUTER_API_KEY
+from practices import PRACTICE_IDS
 
 # Lazy client initialization to allow module import even without API key
 _client = None
@@ -56,3 +57,28 @@ def call_llm(model_key: str, system: str, messages: list[dict]) -> str:
     if not content:
         raise LLMError("Модель вернула пустой ответ. Попробуйте ещё раз.")
     return content
+
+
+def classify_practice(text: str) -> str:
+    if not OPENROUTER_API_KEY:
+        return "general"
+    prompt = (
+        "Определи практику права, к которой относится следующий текст. "
+        f"Ответь только одним словом — id практики из списка: {', '.join(PRACTICE_IDS)}. "
+        "Если не уверен или ни один вариант не подходит явно, ответь general.\n\n"
+        f"Текст:\n{text[:2000]}"
+    )
+    try:
+        client = _get_client()
+        resp = client.chat.completions.create(
+            model=MODELS["Claude"]["model"],
+            max_tokens=10,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        answer = (resp.choices[0].message.content or "").strip().lower()
+        for practice_id in PRACTICE_IDS:
+            if practice_id in answer:
+                return practice_id
+        return "general"
+    except Exception:
+        return "general"
