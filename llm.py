@@ -19,8 +19,11 @@ def _get_client():
         # instead hits OpenRouter directly from the RU IP, which OpenRouter's
         # WAF blocks ("Access denied by security policy"). So: route through
         # the same proxy explicitly, with the correct socks5 scheme.
-        http_client = httpx.Client(proxy="socks5://127.0.0.1:10808", trust_env=False)
-        _client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY, http_client=http_client)
+        # Explicit timeout: without one, a hung proxy connection blocks the request
+        # (and the whole /api/chat call) indefinitely instead of surfacing as the
+        # APITimeoutError/APIConnectionError call_llm already knows how to handle.
+        http_client = httpx.Client(proxy="socks5://127.0.0.1:10808", trust_env=False, timeout=30.0)
+        _client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY, http_client=http_client, timeout=30.0, max_retries=0)
     return _client
 
 MODELS = {
