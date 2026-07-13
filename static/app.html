@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Jurist</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h2>Jurist</h2>
+      <a href="/logout">Выйти</a>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="chat">Чат</button>
+      <button class="tab-btn" data-tab="documents">Документы</button>
+      <button class="tab-btn" data-tab="contracts">Анализ договора</button>
+    </div>
+
+    <div id="tab-chat" class="tab-panel active">
+      <div id="chat-log" class="chat-log"></div>
+      <div id="chat-error" class="error"></div>
+      <form id="chat-form">
+        <textarea id="chat-input" rows="3" placeholder="Ваш вопрос..." required></textarea>
+        <button type="submit">Отправить</button>
+      </form>
+    </div>
+
+    <div id="tab-documents" class="tab-panel">
+      <form id="document-form">
+        <select name="doc_type" required>
+          <option value="NDA">NDA</option>
+          <option value="Договор">Договор</option>
+          <option value="Претензия">Претензия</option>
+          <option value="Исковое заявление">Исковое заявление</option>
+        </select>
+        <input type="text" name="parties" placeholder="Стороны" required>
+        <input type="text" name="subject" placeholder="Предмет" required>
+        <input type="text" name="amounts" placeholder="Суммы (необязательно)">
+        <textarea name="extra" placeholder="Доп. условия (необязательно)"></textarea>
+        <select name="model">
+          <option value="Llama">🟢 Llama 3.3 (бесплатно)</option>
+          <option value="Claude">🟣 Claude Haiku (платно)</option>
+        </select>
+        <button type="submit">Сгенерировать</button>
+      </form>
+      <div id="document-error" class="error"></div>
+      <div id="document-result"></div>
+      <h3>История</h3>
+      <div id="document-list"></div>
+    </div>
+
+    <div id="tab-contracts" class="tab-panel">
+      <form id="contract-form">
+        <input type="file" name="file" accept=".txt,.docx,.pdf" required>
+        <select name="model">
+          <option value="Llama">🟢 Llama 3.3 (бесплатно)</option>
+          <option value="Claude">🟣 Claude Haiku (платно)</option>
+        </select>
+        <button type="submit">Загрузить и проанализировать</button>
+      </form>
+      <div id="contract-error" class="error"></div>
+      <div id="contract-result"></div>
+      <h3>История</h3>
+      <div id="contract-list"></div>
+    </div>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
