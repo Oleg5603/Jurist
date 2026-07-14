@@ -69,7 +69,10 @@ def login(login: str = Form(...), password: str = Form(...)):
         raise HTTPException(status_code=401, detail="Неверный логин или пароль")
     token = _serializer.dumps({"login": login})
     response = RedirectResponse(url="/app", status_code=303)
-    response.set_cookie(COOKIE_NAME, token, max_age=COOKIE_MAX_AGE, httponly=True, samesite="lax")
+    # Приложение торчит наружу только через HTTPS-туннели (cloudflared/ngrok),
+    # поэтому Secure безопасно всегда — локальная разработка тоже обычно идёт
+    # через туннель для реального теста логина.
+    response.set_cookie(COOKIE_NAME, token, max_age=COOKIE_MAX_AGE, httponly=True, samesite="lax", secure=True)
     return response
 
 
