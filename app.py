@@ -1,7 +1,9 @@
 import io
 import os
 import secrets
+import time
 import uuid
+from collections import deque
 
 import docx
 import pypdf
@@ -33,6 +35,30 @@ def require_session(request: Request) -> None:
         _serializer.loads(token, max_age=COOKIE_MAX_AGE)
     except (BadSignature, SignatureExpired):
         raise HTTPException(status_code=401, detail="Сессия истекла или недействительна")
+
+
+# --- Простой rate-limiting на дорогие (LLM-вызывающие) эндпоинты ---
+# Единый логин/пароль на всех, без per-user лимитов: при утечке cookie
+# можно быстро забить квоту OpenRouter. In-memory скользящее окно по
+# session-cookie достаточно для однопроцессного hobby-scale приложения
+# (сбрасывается при рестарте — не проблема).
+RATE_LIMIT_MAX_REQUESTS = 20
+RATE_LIMIT_WINDOW_SECONDS = 60
+_rate_limit_buckets: dict[str, deque] = {}
+
+
+def rate_limit(request: Request) -> None:
+    token = request.cookies.get(COOKIE_NAME, "anonymous")
+    now = time.monotonic()
+    bucket = _rate_limit_buckets.setdefault(token, deque())
+    while bucket and now - bucket[0] > RATE_LIMIT_WINDOW_SECONDS:
+        bucket.popleft()
+    if len(bucket) >= RATE_LIMIT_MAX_REQUESTS:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Слишком много запросов, подождите немного (лимит {RATE_LIMIT_MAX_REQUESTS} запросов в {RATE_LIMIT_WINDOW_SECONDS} секунд)",
+        )
+    bucket.append(now)
 
 
 @app.post("/login")
@@ -77,7 +103,7 @@ class ChatRequest(BaseModel):
 
 
 @app.post("/api/chat")
-def chat(req: ChatRequest, _: None = Depends(require_session)):
+def chat(req: ChatRequest, _: None = Depends(require_session), __: None = Depends(rate_limit)):
     history = storage.load_chat(req.session_id)
     history.append({"role": "user", "content": req.message})
     practice_id = classify_practice(req.message)
@@ -112,7 +138,7 @@ class DocumentRequest(BaseModel):
 
 
 @app.post("/api/documents/generate")
-def generate_document(req: DocumentRequest, _: None = Depends(require_session)):
+def generate_document(req: DocumentRequest, _: None = Depends(require_session), __: None = Depends(rate_limit)):
     user_prompt = (
         f"Тип документа: {req.doc_type}\n"
         f"Стороны: {req.parties}\n"
