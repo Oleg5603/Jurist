@@ -43,10 +43,13 @@ def call_llm(model_key: str, system: str, messages: list[dict]) -> str:
     if model_key not in MODELS:
         raise LLMError(f"Неизвестная модель: {model_key}")
 
-    # The proxy this machine routes through (see _get_client above) is known to drop
-    # connections intermittently, not consistently — a single retry on connection-level
-    # failures (not on timeouts or API errors) smooths over that flakiness.
-    last_connection_error = None
+    # The proxy this machine routes through is known to drop connections and,
+    # occasionally, route a single request around itself entirely — which OpenRouter's
+    # WAF then rejects with a 403 "Access denied by security policy" even though the
+    # very next request through the same proxy succeeds (confirmed repeatedly in
+    # manual testing). Both failure modes are transient glitches in the proxy layer,
+    # not real errors, so both get one retry.
+    last_transient_error = None
     resp = None
     for attempt in range(2):
         try:
@@ -56,20 +59,24 @@ def call_llm(model_key: str, system: str, messages: list[dict]) -> str:
                 max_tokens=2048,
                 messages=[{"role": "system", "content": system}, *messages],
             )
-            last_connection_error = None
+            last_transient_error = None
             break
         except APIConnectionError as e:
-            last_connection_error = e
+            last_transient_error = e
             if attempt == 0:
                 time.sleep(1)
                 continue
         except APITimeoutError:
             raise LLMError("Модель не ответила вовремя (таймаут). Попробуйте ещё раз.")
         except APIError as e:
+            if getattr(e, "status_code", None) == 403 and attempt == 0:
+                last_transient_error = e
+                time.sleep(1)
+                continue
             raise LLMError(f"Ошибка OpenRouter: {e}")
         except Exception as e:
             raise LLMError(f"Не удалось обратиться к LLM: {e}")
-    if last_connection_error is not None:
+    if last_transient_error is not None:
         raise LLMError("Не удалось подключиться к OpenRouter. Проверьте интернет-соединение.")
     content = resp.choices[0].message.content
     if not content:
