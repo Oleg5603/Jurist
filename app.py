@@ -15,8 +15,10 @@ from pydantic import BaseModel
 
 import storage
 from config import APP_LOGIN, APP_PASSWORD, SESSION_SECRET
-from llm import call_llm, LLMError, DEFAULT_MODEL, classify_practice
-from practices import with_practice
+from llm import LLMError, DEFAULT_MODEL
+from orchestrator import JuristOrchestrator
+
+orchestrator = JuristOrchestrator()
 
 app = FastAPI(title="Jurist")
 
@@ -108,12 +110,6 @@ def cases_list(_: None = Depends(require_session)):
     return {"cases": storage.list_cases()}
 
 
-CHAT_SYSTEM_PROMPT = """Ты — юридический ассистент, ориентированный на право Российской Федерации.
-Помогаешь разобраться в правовых вопросах: даёшь ссылки на применимые нормы, объясняешь порядок действий,
-указываешь на риски. ВАЖНО: твой ответ не является юридической консультацией и не заменяет очную консультацию
-юриста — всегда явно указывай это, если вопрос касается конкретной спорной ситуации."""
-
-
 class ChatRequest(BaseModel):
     session_id: str
     message: str
@@ -124,13 +120,11 @@ class ChatRequest(BaseModel):
 @app.post("/api/chat")
 def chat(req: ChatRequest, _: None = Depends(require_session), __: None = Depends(rate_limit)):
     history = storage.load_chat(req.session_id)
-    history.append({"role": "user", "content": req.message})
-    practice_id = classify_practice(req.message)
-    system = with_practice(CHAT_SYSTEM_PROMPT, practice_id)
     try:
-        reply = call_llm(req.model or DEFAULT_MODEL, system, history)
+        reply = orchestrator.handle_chat(req.message, history, req.model or DEFAULT_MODEL)
     except LLMError as e:
         raise HTTPException(status_code=502, detail=str(e))
+    history.append({"role": "user", "content": req.message})
     history.append({"role": "assistant", "content": reply})
     storage.save_chat(req.session_id, history, case_id=req.case_id)
     return {"reply": reply}
@@ -144,12 +138,6 @@ def get_chat_history(session_id: str, _: None = Depends(require_session)):
 @app.get("/api/chats")
 def chats_list(_: None = Depends(require_session)):
     return {"chats": storage.list_chats()}
-
-
-DOCUMENT_SYSTEM_PROMPT = """Ты — юридический ассистент, готовящий черновики документов по праву РФ.
-На основе вводных данных составь полный текст документа указанного типа, с корректной структурой
-(шапка, стороны, предмет, условия, реквизиты для подписи). Незаполненные детали помечай [В КВАДРАТНЫХ СКОБКАХ].
-В конце документа добавь пометку: "Документ сформирован автоматически, требует проверки юристом перед использованием."""
 
 
 class DocumentRequest(BaseModel):
@@ -171,10 +159,8 @@ def generate_document(req: DocumentRequest, _: None = Depends(require_session), 
         f"Суммы: {req.amounts or 'не указаны'}\n"
         f"Доп. условия: {req.extra or 'нет'}"
     )
-    practice_id = classify_practice(user_prompt)
-    system = with_practice(DOCUMENT_SYSTEM_PROMPT, practice_id)
     try:
-        text = call_llm(req.model or DEFAULT_MODEL, system, [{"role": "user", "content": user_prompt}])
+        text = orchestrator.handle_document(req.doc_type, user_prompt, req.model or DEFAULT_MODEL)
     except LLMError as e:
         raise HTTPException(status_code=502, detail=str(e))
     doc_id = uuid.uuid4().hex
@@ -216,13 +202,6 @@ def download_document_docx(doc_id: str, _: None = Depends(require_session)):
     )
 
 
-CONTRACT_SYSTEM_PROMPT = """Ты — юридический ассистент, анализирующий договоры по праву РФ на риски.
-Изучи текст договора и составь список рисков. Каждый риск помечай одним из значков:
-🔴 критический (может привести к прямым убыткам/недействительности), 🟡 важный (требует внимания),
-🟢 приемлемый (незначительный, для полноты картины). Также перечисли типовые защитные пункты, которых
-не хватает в договоре, и предложи конкретные формулировки правок. Отвечай структурированным списком."""
-
-
 # Rough char->token safety margin below OpenRouter's 200k-token context limit,
 # leaving room for the system prompt and the model's own output tokens.
 MAX_CONTRACT_CHARS = 400_000
@@ -261,10 +240,8 @@ async def analyze_contract(
                 "Похоже, это не договор, а другой документ, либо его нужно разбить на части."
             ),
         )
-    practice_id = classify_practice(text)
-    system = with_practice(CONTRACT_SYSTEM_PROMPT, practice_id)
     try:
-        analysis_text = call_llm(model or DEFAULT_MODEL, system, [{"role": "user", "content": text}])
+        analysis_text = orchestrator.handle_contract(text, model or DEFAULT_MODEL)
     except LLMError as e:
         raise HTTPException(status_code=502, detail=str(e))
     contract_id = uuid.uuid4().hex
