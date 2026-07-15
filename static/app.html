@@ -31,6 +31,10 @@
 
     <div id="tab-chat" class="tab-panel active">
       <label>Дело: <select id="chat-case-select"><option value="">— без дела —</option></select></label>
+      <label>Модель: <select id="chat-model-select">
+        <option value="Llama">🟢 Llama 3.3 (бесплатно)</option>
+        <option value="Claude">🟣 Claude Haiku (платно)</option>
+      </select></label>
       <div id="chat-log" class="chat-log"></div>
       <div id="chat-error" class="error"></div>
       <form id="chat-form">

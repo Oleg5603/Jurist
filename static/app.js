@@ -83,10 +83,11 @@ document.getElementById("chat-form").addEventListener("submit", async (e) => {
   input.value = "";
   try {
     const caseId = document.getElementById("chat-case-select").value;
+    const model = document.getElementById("chat-model-select").value;
     const resp = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: CHAT_SESSION_ID, message, case_id: caseId || null }),
+      body: JSON.stringify({ session_id: CHAT_SESSION_ID, message, model, case_id: caseId || null }),
     });
     if (!resp.ok) {
       const err = await resp.json();
