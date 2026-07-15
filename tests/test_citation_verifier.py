@@ -16,6 +16,11 @@ def test_extract_multiple_citations_different_codes():
     assert extract_citations(text) == [("ТК РФ", "81"), ("ГК РФ", "395")]
 
 
+def test_extract_citation_with_russian_declension():
+    text = "Статьи 99999 ГК РФ не существует."
+    assert extract_citations(text) == [("ГК РФ", "99999")]
+
+
 def test_extract_no_citations():
     text = "Общий совет без ссылок на конкретные статьи."
     assert extract_citations(text) == []

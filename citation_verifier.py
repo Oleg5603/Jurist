@@ -4,7 +4,7 @@ from mcp_servers.law_lookup.server import lookup_article
 
 _LAW_CODES = "ГК|ТК|НК|КоАП|СК|ЗК"
 _CITATION_RE = re.compile(
-    rf"(?:ст\.?|статья)\s*(\d+(?:\.\d+)?)\s+({_LAW_CODES})\s*РФ",
+    rf"(?:ст\.?|стать\w*)\s*(\d+(?:\.\d+)?)\s+({_LAW_CODES})\s*РФ",
     re.IGNORECASE,
 )
 
