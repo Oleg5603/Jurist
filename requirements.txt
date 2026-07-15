@@ -6,3 +6,4 @@ itsdangerous
 python-docx
 pypdf
 python-multipart
+mcp
