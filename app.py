@@ -223,6 +223,11 @@ CONTRACT_SYSTEM_PROMPT = """Ты — юридический ассистент, 
 не хватает в договоре, и предложи конкретные формулировки правок. Отвечай структурированным списком."""
 
 
+# Rough char->token safety margin below OpenRouter's 200k-token context limit,
+# leaving room for the system prompt and the model's own output tokens.
+MAX_CONTRACT_CHARS = 400_000
+
+
 def _extract_text(filename: str, content: bytes) -> str:
     lower = filename.lower()
     if lower.endswith(".txt"):
@@ -248,6 +253,14 @@ async def analyze_contract(
     text = _extract_text(file.filename, content)
     if not text.strip():
         raise HTTPException(status_code=400, detail="Не удалось извлечь текст из файла")
+    if len(text) > MAX_CONTRACT_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Файл слишком большой для анализа ({len(text):,} символов, лимит {MAX_CONTRACT_CHARS:,}). "
+                "Похоже, это не договор, а другой документ, либо его нужно разбить на части."
+            ),
+        )
     practice_id = classify_practice(text)
     system = with_practice(CONTRACT_SYSTEM_PROMPT, practice_id)
     try:
