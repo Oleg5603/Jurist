@@ -30,7 +30,11 @@ def verify_citations(text: str) -> str:
         except Exception:
             continue  # fail open: a lookup error is not a verification failure
         if not result["exists"]:
-            warnings.append(f"⚠️ Не удалось подтвердить: ст. {number} {law} (возможно, ошибка модели)")
+            warnings.append(
+                f"⚠️ Не удалось подтвердить: ст. {number} {law} "
+                "(нет в офлайн-индексе — индекс покрывает не все статьи, "
+                "статья может существовать; проверьте номер вручную)"
+            )
 
     if not warnings:
         return text
