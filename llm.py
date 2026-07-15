@@ -30,7 +30,7 @@ MODELS = {
     "Llama": {"label": "🟢 Llama 3.3 (бесплатно)", "model": "meta-llama/llama-3.3-70b-instruct:free"},
     "Claude": {"label": "🟣 Claude Haiku (платно)", "model": "anthropic/claude-haiku-4.5"},
 }
-DEFAULT_MODEL = "Llama"
+DEFAULT_MODEL = "Claude"
 
 
 class LLMError(Exception):

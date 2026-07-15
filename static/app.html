@@ -33,7 +33,7 @@
       <label>Дело: <select id="chat-case-select"><option value="">— без дела —</option></select></label>
       <label>Модель: <select id="chat-model-select">
         <option value="Llama">🟢 Llama 3.3 (бесплатно)</option>
-        <option value="Claude">🟣 Claude Haiku (платно)</option>
+        <option value="Claude" selected>🟣 Claude Haiku (платно)</option>
       </select></label>
       <div id="chat-log" class="chat-log"></div>
       <div id="chat-error" class="error"></div>
@@ -58,7 +58,7 @@
         <textarea name="extra" placeholder="Доп. условия (необязательно)"></textarea>
         <select name="model">
           <option value="Llama">🟢 Llama 3.3 (бесплатно)</option>
-          <option value="Claude">🟣 Claude Haiku (платно)</option>
+          <option value="Claude" selected>🟣 Claude Haiku (платно)</option>
         </select>
         <button type="submit">Сгенерировать</button>
       </form>
@@ -74,7 +74,7 @@
         <input type="file" name="file" accept=".txt,.docx,.pdf" required>
         <select name="model">
           <option value="Llama">🟢 Llama 3.3 (бесплатно)</option>
-          <option value="Claude">🟣 Claude Haiku (платно)</option>
+          <option value="Claude" selected>🟣 Claude Haiku (платно)</option>
         </select>
         <button type="submit">Загрузить и проанализировать</button>
       </form>
