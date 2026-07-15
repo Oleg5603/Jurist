@@ -197,7 +197,12 @@ def _extract_text(filename: str, content: bytes) -> str:
 
 
 @app.post("/api/contracts/analyze")
-async def analyze_contract(file: UploadFile = File(...), model: str = Form(default=""), _: None = Depends(require_session)):
+async def analyze_contract(
+    file: UploadFile = File(...),
+    model: str = Form(default=""),
+    _: None = Depends(require_session),
+    __: None = Depends(rate_limit),
+):
     content = await file.read()
     text = _extract_text(file.filename, content)
     if not text.strip():
