@@ -13,12 +13,24 @@
     </div>
 
     <div class="tabs">
+      <button class="tab-btn" data-tab="cases">Дела</button>
       <button class="tab-btn active" data-tab="chat">Чат</button>
       <button class="tab-btn" data-tab="documents">Документы</button>
       <button class="tab-btn" data-tab="contracts">Анализ договора</button>
     </div>
 
+    <div id="tab-cases" class="tab-panel">
+      <form id="case-form">
+        <input type="text" name="name" placeholder="Название дела (напр. Иванов vs ООО Ромашка)" required>
+        <button type="submit">Создать дело</button>
+      </form>
+      <div id="case-error" class="error"></div>
+      <h3>Дела</h3>
+      <div id="case-list"></div>
+    </div>
+
     <div id="tab-chat" class="tab-panel active">
+      <label>Дело: <select id="chat-case-select"><option value="">— без дела —</option></select></label>
       <div id="chat-log" class="chat-log"></div>
       <div id="chat-error" class="error"></div>
       <form id="chat-form">
@@ -29,6 +41,7 @@
 
     <div id="tab-documents" class="tab-panel">
       <form id="document-form">
+        <label>Дело: <select name="case_id" id="document-case-select"><option value="">— без дела —</option></select></label>
         <select name="doc_type" required>
           <option value="NDA">NDA</option>
           <option value="Договор">Договор</option>
@@ -53,6 +66,7 @@
 
     <div id="tab-contracts" class="tab-panel">
       <form id="contract-form">
+        <label>Дело: <select name="case_id" id="contract-case-select"><option value="">— без дела —</option></select></label>
         <input type="file" name="file" accept=".txt,.docx,.pdf" required>
         <select name="model">
           <option value="Llama">🟢 Llama 3.3 (бесплатно)</option>

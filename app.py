@@ -8,7 +8,7 @@ from collections import deque
 import docx
 import pypdf
 from fastapi import FastAPI, Request, HTTPException, Form, Depends, UploadFile, File
-from fastapi.responses import RedirectResponse, FileResponse, PlainTextResponse
+from fastapi.responses import RedirectResponse, FileResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from pydantic import BaseModel
@@ -93,6 +93,21 @@ def app_page(_: None = Depends(require_session)):
     return FileResponse(os.path.join(STATIC_DIR, "app.html"))
 
 
+class CaseRequest(BaseModel):
+    name: str
+
+
+@app.post("/api/cases")
+def create_case(req: CaseRequest, _: None = Depends(require_session)):
+    case_id = uuid.uuid4().hex
+    return storage.save_case(case_id, req.name)
+
+
+@app.get("/api/cases")
+def cases_list(_: None = Depends(require_session)):
+    return {"cases": storage.list_cases()}
+
+
 CHAT_SYSTEM_PROMPT = """Ты — юридический ассистент, ориентированный на право Российской Федерации.
 Помогаешь разобраться в правовых вопросах: даёшь ссылки на применимые нормы, объясняешь порядок действий,
 указываешь на риски. ВАЖНО: твой ответ не является юридической консультацией и не заменяет очную консультацию
@@ -103,6 +118,7 @@ class ChatRequest(BaseModel):
     session_id: str
     message: str
     model: str | None = None
+    case_id: str | None = None
 
 
 @app.post("/api/chat")
@@ -116,13 +132,18 @@ def chat(req: ChatRequest, _: None = Depends(require_session), __: None = Depend
     except LLMError as e:
         raise HTTPException(status_code=502, detail=str(e))
     history.append({"role": "assistant", "content": reply})
-    storage.save_chat(req.session_id, history)
+    storage.save_chat(req.session_id, history, case_id=req.case_id)
     return {"reply": reply}
 
 
 @app.get("/api/chat/{session_id}")
 def get_chat_history(session_id: str, _: None = Depends(require_session)):
     return {"messages": storage.load_chat(session_id)}
+
+
+@app.get("/api/chats")
+def chats_list(_: None = Depends(require_session)):
+    return {"chats": storage.list_chats()}
 
 
 DOCUMENT_SYSTEM_PROMPT = """Ты — юридический ассистент, готовящий черновики документов по праву РФ.
@@ -138,6 +159,7 @@ class DocumentRequest(BaseModel):
     amounts: str = ""
     extra: str = ""
     model: str | None = None
+    case_id: str | None = None
 
 
 @app.post("/api/documents/generate")
@@ -156,7 +178,7 @@ def generate_document(req: DocumentRequest, _: None = Depends(require_session), 
     except LLMError as e:
         raise HTTPException(status_code=502, detail=str(e))
     doc_id = uuid.uuid4().hex
-    storage.save_document(doc_id, {"doc_type": req.doc_type, "input": req.model_dump(), "text": text})
+    storage.save_document(doc_id, {"doc_type": req.doc_type, "input": req.model_dump(), "text": text, "case_id": req.case_id})
     return {"id": doc_id, "text": text}
 
 
@@ -173,6 +195,24 @@ def download_document(doc_id: str, _: None = Depends(require_session)):
     return PlainTextResponse(
         doc["text"],
         headers={"Content-Disposition": f'attachment; filename="{doc_id}.txt"'},
+    )
+
+
+@app.get("/api/documents/{doc_id}/download.docx")
+def download_document_docx(doc_id: str, _: None = Depends(require_session)):
+    doc = storage.load_document(doc_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Документ не найден")
+    document = docx.Document()
+    for line in doc["text"].split("\n"):
+        document.add_paragraph(line)
+    buf = io.BytesIO()
+    document.save(buf)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{doc_id}.docx"'},
     )
 
 
@@ -200,6 +240,7 @@ def _extract_text(filename: str, content: bytes) -> str:
 async def analyze_contract(
     file: UploadFile = File(...),
     model: str = Form(default=""),
+    case_id: str = Form(default=""),
     _: None = Depends(require_session),
     __: None = Depends(rate_limit),
 ):
@@ -214,7 +255,7 @@ async def analyze_contract(
     except LLMError as e:
         raise HTTPException(status_code=502, detail=str(e))
     contract_id = uuid.uuid4().hex
-    storage.save_contract(contract_id, file.filename, content, {"analysis": analysis_text})
+    storage.save_contract(contract_id, file.filename, content, {"analysis": analysis_text}, case_id=case_id or None)
     return {"id": contract_id, "analysis": analysis_text}
 
 

@@ -7,6 +7,60 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
   });
 });
 
+async function loadCases() {
+  const resp = await fetch("/api/cases");
+  const data = await resp.json();
+  const list = document.getElementById("case-list");
+  list.innerHTML = "";
+  data.cases.forEach((c) => {
+    const div = document.createElement("div");
+    div.className = "list-item";
+    div.textContent = `${c.name} — ${c.created_at}`;
+    list.appendChild(div);
+  });
+  document.querySelectorAll(".case-select-target").forEach((select) => {
+    const current = select.value;
+    select.innerHTML = '<option value="">— без дела —</option>';
+    data.cases.forEach((c) => {
+      const opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = c.name;
+      select.appendChild(opt);
+    });
+    select.value = current;
+  });
+  return data.cases;
+}
+
+document.getElementById("chat-case-select").classList.add("case-select-target");
+document.getElementById("document-case-select").classList.add("case-select-target");
+document.getElementById("contract-case-select").classList.add("case-select-target");
+
+document.getElementById("case-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const errorEl = document.getElementById("case-error");
+  errorEl.textContent = "";
+  const form = new FormData(e.target);
+  try {
+    const resp = await fetch("/api/cases", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(Object.fromEntries(form.entries())),
+    });
+    if (!resp.ok) {
+      const err = await resp.json();
+      errorEl.textContent = err.detail || "Ошибка запроса";
+      return;
+    }
+    e.target.reset();
+    loadCases();
+  } catch (err) {
+    errorEl.textContent = "Сетевая ошибка: " + err.message;
+  }
+});
+
+loadCases();
+
 const CHAT_SESSION_ID = "session-" + Date.now();
 const chatLog = document.getElementById("chat-log");
 const chatError = document.getElementById("chat-error");
@@ -28,10 +82,11 @@ document.getElementById("chat-form").addEventListener("submit", async (e) => {
   appendMessage("user", message);
   input.value = "";
   try {
+    const caseId = document.getElementById("chat-case-select").value;
     const resp = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: CHAT_SESSION_ID, message }),
+      body: JSON.stringify({ session_id: CHAT_SESSION_ID, message, case_id: caseId || null }),
     });
     if (!resp.ok) {
       const err = await resp.json();
@@ -53,7 +108,7 @@ async function loadDocumentList() {
   data.documents.forEach((doc) => {
     const div = document.createElement("div");
     div.className = "list-item";
-    div.innerHTML = `${doc.doc_type} — ${doc.created_at} — <a href="/api/documents/${doc.id}/download">скачать</a>`;
+    div.innerHTML = `${doc.doc_type} — ${doc.created_at} — <a href="/api/documents/${doc.id}/download">txt</a> / <a href="/api/documents/${doc.id}/download.docx">docx</a>`;
     list.appendChild(div);
   });
 }
